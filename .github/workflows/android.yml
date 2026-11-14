@@ -8,14 +8,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Configurar Android NDK
+      - name: Aceptar licencias e instalar NDK
         run: |
           SDK="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
@@ -24,16 +26,34 @@ jobs:
           "$SDK" --uninstall "ndk;30.0.16248370" || true
           "$SDK" "ndk;25.2.9519653"
 
-      - name: Configurar Java para Gradle
+      - name: Reparar herramienta NDK strip
+        run: |
+          NDK_BIN="$ANDROID_HOME/ndk/25.2.9519653/toolchains/llvm/prebuilt/linux-x86_64/bin"
+
+          if [ ! -f "$NDK_BIN/llvm-strip" ]; then
+            echo "ERROR: No se encontró llvm-strip"
+            exit 1
+          fi
+
+          chmod +x "$NDK_BIN/llvm-strip"
+
+          ln -sf llvm-strip "$NDK_BIN/x86_64-linux-android-strip"
+
+          echo "Herramienta NDK preparada:"
+          ls -l "$NDK_BIN/x86_64-linux-android-strip"
+
+      - name: Configurar Java 11 para Gradle
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 11
 
-      - name: Compilar
+      - name: Extraer código fuente
         run: |
           unzip -q CODIGO_FUENTE.zip -d fuente
 
+      - name: Compilar APK
+        run: |
           G=$(find fuente -path '*misc/android/gradlew' | head -1)
 
           if [ -z "$G" ]; then
@@ -42,11 +62,14 @@ jobs:
           fi
 
           cd "$(dirname "$G")"
+
           chmod +x gradlew
 
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --stacktrace
 
-      - uses: actions/upload-artifact@v4
+      - name: Subir APK
+        uses: actions/upload-artifact@v4
         with:
           name: ClassiEmicx-apk
           path: fuente/**/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
