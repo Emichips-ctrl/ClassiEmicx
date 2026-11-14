@@ -1,0 +1,24 @@
+name: Android APK
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Aceptar licencias del SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+      - name: Compilar
+        run: |
+          unzip -q CODIGO_FUENTE.zip -d fuente
+          G=$(find fuente -path '*misc/android/gradlew' | head -1)
+          cd "$(dirname "$G")"
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClassiEmicx-apk
+          path: fuente/**/app/build/outputs/apk/debug/*.apk
